@@ -1,7 +1,7 @@
 import os
 import time
 import datetime
-from .config import VIDEO_STORAGE_DIR, EVENT_VIDEO_DIR
+from .config import VIDEO_STORAGE_DIR, EVENT_VIDEO_DIR, BUFFER_SIZE_MINUTES
 from .utils import ensure_dir, get_current_timestamp, save_video_chunk
 
 class VideoStorageManager:
