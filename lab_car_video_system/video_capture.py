@@ -2,8 +2,8 @@ import os
 import time
 import datetime
 import threading
-import cv2
 import numpy as np
+import cv2
 from picamera2 import Picamera2
 from .config import *
 from .utils import ensure_dir, get_current_timestamp, save_video_chunk
@@ -27,7 +27,7 @@ class CircularBuffer:
             self.buffer.append(chunk)
             if len(self.buffer) > self.max_size:
                 oldest_chunk = self.buffer.pop(0)
-                # In a real scenario, you might want to delete the file here
+                # Optionally delete old chunks if they are stored on disk
                 # os.remove(oldest_chunk)
 
     def get_chunks(self, start_time, end_time):
@@ -65,22 +65,20 @@ class VideoCaptureManager:
         self.stop_event.set()
         if self.capture_thread:
             self.capture_thread.join()
-        if self.camera:
-            self.camera.stop()  # Stop the camera
+        if self.camera and hasattr(self.camera, 'stop'):
+            self.camera.stop()
 
     def _capture_loop(self):
         """Main video capture loop using libcamera."""
         try:
-            # Initialize camera with Picamera2
+            # Initialize the camera using libcamera
             self.camera = Picamera2()
-
-            # Configure the camera for video capture
-            video_config = self.camera.create_video_configuration(main={"format": 'XRGB8888', "size": (VIDEO_WIDTH, VIDEO_HEIGHT)})
-            self.camera.configure(video_config)
-
-            # Start the camera
+            camera_config = self.camera.create_video_configuration(
+                main={"format": 'XRGB8888', "size": (VIDEO_WIDTH, VIDEO_HEIGHT)},
+                controls={"FrameRate": FPS}
+            )
+            self.camera.configure(camera_config)
             self.camera.start()
-            print("Camera started.")
 
             chunk_duration = CHUNK_DURATION_SECONDS
             chunk_frames_count = chunk_duration * FPS
@@ -93,35 +91,30 @@ class VideoCaptureManager:
                 warning = None
                 speed = None
 
-                # Capture frame from the camera
+                # Capture frame
                 frame = self.camera.capture_array()
+                if frame is not None:
+                    # Convert frame to BGR format, which OpenCV expects
+                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    # Overlay information on the frame
+                    frame = overlay_info_on_frame(frame, timestamp, warning, speed)
+                    self.chunk_frames.append(frame)
+                    frame_count += 1
 
-                # Convert the frame to BGR format for OpenCV
-                frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-
-                # Overlay information on the frame
-                frame_with_overlay = overlay_info_on_frame(frame_bgr, timestamp, warning, speed)
-                self.chunk_frames.append(frame_with_overlay)
-                frame_count += 1
-
-                # Check if we've reached the end of a chunk
-                if frame_count >= chunk_frames_count:
-                    self._save_current_chunk()
-                    frame_count = 0
+                    if frame_count >= chunk_frames_count:
+                        self._save_current_chunk()
+                        frame_count = 0
 
                 # Simulate frame rate delay
                 time.sleep(1/FPS)
 
-            # Save any remaining frames in the current chunk
-            if self.chunk_frames:
-                self._save_current_chunk()
-
-        except Exception as e:
-            print(f"Error in video capture loop: {e}")
         finally:
             if self.camera:
                 self.camera.stop()
-                print("Camera stopped.")
+
+        # Save any remaining frames in the current chunk
+        if self.chunk_frames:
+            self._save_current_chunk()
 
     def _save_current_chunk(self):
         """Save the current chunk to the circular buffer."""
@@ -146,8 +139,6 @@ class VideoCaptureManager:
         end_time = event_time + 5 * 60    # 5 minutes after the event
 
         relevant_chunks = self.circular_buffer.get_chunks(start_time, end_time)
-
-        # For testing, we'll just return the chunks
         return relevant_chunks
 
     def save_event_video(self, event_time):
