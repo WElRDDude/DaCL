@@ -1,38 +1,59 @@
-# DaCL
 
-A system for recording video from a lab car, with event triggering via CAN bus messages or manual input.
+### Installation and Usage Guide
 
-## Features
+#### Hardware Requirements
+1. Raspberry Pi (any model with camera support)
+2. Raspberry Pi Camera Module (global shutter recommended)
+3. CAN bus adapter (USB2CAN or similar)
+4. Manual trigger button or switch
+5. MicroSD card (32GB or larger recommended)
+6. Power supply for Raspberry Pi
 
-- Continuous video recording with rolling buffer
-- Event triggering via CAN bus messages or manual button
-- Saves 5 minutes before and after each event
-- Overlay of warning messages, vehicle speed, and timestamp on videos
+#### Software Requirements
+1. Raspberry Pi OS (preferably the latest version)
+2. Python 3.x
+3. Required Python packages (listed in requirements.txt)
 
-## Installation
+#### Installation Steps
 
-1. Clone this repository
-2. Install the required dependencies:
+1. **Set up Raspberry Pi OS**:
+   - Download and install Raspberry Pi OS on a microSD card using the Raspberry Pi Imager.
+   - Insert the microSD card into the Raspberry Pi and boot it up.
+   - Complete the initial setup (language, Wi-Fi, etc.).
+
+2. **Enable Camera and Other Interfaces**:
+   - Run `sudo raspi-config`.
+   - Navigate to Interface Options and enable the Camera, SPI, and I2C interfaces.
+   - Finish and reboot.
+
+3. **Install Dependencies**:
+   - Update your system and install required packages:
+     ```bash
+     sudo apt update
+     sudo apt upgrade -y
+     sudo apt install -y python3-pip python3-opencv libatlas-base-dev libhdf5-dev libhdf5-serial-dev libjasper-dev libqtgui4 libqt4-test
+     ```
+   - Install Python dependencies:
+     ```bash
+     pip3 install -r requirements.txt
+     ```
+
+4. **Set up CAN Interface**:
+   - If using a CAN bus adapter, load the necessary kernel modules and bring up the CAN interface:
+     ```bash
+     sudo modprobe can
+     sudo modprobe can_raw
+     sudo modprobe can_dev
+     sudo modprobe gs_usb
+     sudo ip link set can0 up type can bitrate 500000
+     ```
+
+5. **Connect Hardware**:
+   - Connect the camera module to the Raspberry Pi's camera port.
+   - Connect the CAN bus adapter to a USB port on the Raspberry Pi.
+   - Connect the manual trigger button to a GPIO pin (e.g., GPIO 18) and ground.
+
+6. **Clone the Repository**:
    ```bash
-   pip install -r requirements.txt
-
-
-### How to Use This Project
-
-1. Clone this repository to your Raspberry Pi or development machine.
-2. Install the required dependencies by running `pip install -r requirements.txt`.
-3. Install the package in development mode with `pip install -e .`.
-4. Run the system with `python -m lab_car_video_system.main` or `lab_car_video`.
-
-For testing purposes, you can run the system on any machine with Python installed. The manual trigger simulation allows you to press 't' followed by Enter to simulate a trigger event. The system will display information about the captured event video.
-
-For deployment on a Raspberry Pi with actual hardware:
-
-1. Connect your camera module to the Raspberry Pi.
-2. Connect your CAN bus adapter to the Raspberry Pi.
-3. Connect your manual trigger button to the specified GPIO pin (default is 17).
-4. Configure the CAN interface according to your setup.
-5. Update the `config.py` file with your specific settings.
-6. Install the required dependencies and run the system.
-
-This complete project provides a modular and extensible framework for your lab car video recording system. Each component is separated into its own module, making it easy to modify, test, and maintain individual parts of the system. The system is designed to run continuously and handles both CAN bus triggers and manual triggers, saving relevant video footage for each event.
+   git clone <repository_url>
+   cd lab_car_video_system
