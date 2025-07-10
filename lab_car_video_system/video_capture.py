@@ -1,173 +1,88 @@
-import os
-import time
-import datetime
-import threading
 import cv2
-import numpy as np
-from .config import *
-from .utils import ensure_dir, get_current_timestamp, save_video_chunk
-from .overlay import overlay_info_on_frame
+import time
+from threading import Lock
+from datetime import datetime
 
-class VideoChunk:
-    def __init__(self, start_time):
-        self.start_time = start_time
-        self.end_time = None
-        self.frames = []
-        self.timestamp = None
-
-class CircularBuffer:
-    def __init__(self, max_size):
-        self.buffer = []
-        self.max_size = max_size
-        self.lock = threading.Lock()
-
-    def add_chunk(self, chunk):
-        with self.lock:
-            self.buffer.append(chunk)
-            if len(self.buffer) > self.max_size:
-                oldest_chunk = self.buffer.pop(0)
-                # In a real scenario, you might want to delete the file here
-                # os.remove(oldest_chunk)
-
-    def get_chunks(self, start_time, end_time):
-        relevant_chunks = []
-        with self.lock:
-            for chunk in self.buffer:
-                chunk_time = chunk.start_time
-                if start_time <= chunk_time <= end_time:
-                    relevant_chunks.append(chunk)
-        return relevant_chunks
-
-    def clear(self):
-        with self.lock:
-            self.buffer = []
-
-class VideoCaptureManager:
-    def __init__(self):
-        self.circular_buffer = CircularBuffer((BUFFER_SIZE_MINUTES * 60) // CHUNK_DURATION_SECONDS)
-        self.current_chunk = None
-        self.chunk_start_time = None
-        self.chunk_frames = []
-        self.camera = None
-        self.stop_event = threading.Event()
-        self.capture_thread = None
-        ensure_dir(VIDEO_STORAGE_DIR)
-
-    def start_capture(self):
-        """Start the video capture thread."""
-        self.stop_event.clear()
-        self.capture_thread = threading.Thread(target=self._capture_loop)
-        self.capture_thread.start()
-
-    def stop_capture(self):
-        """Stop the video capture thread."""
-        self.stop_event.set()
-        if self.capture_thread:
-            self.capture_thread.join()
-        if self.camera and hasattr(self.camera, 'release'):
-            self.camera.release()
-
-    def _capture_loop(self):
-        """Main video capture loop."""
-        # Initialize camera (for testing, we'll use a dummy camera)
-        try:
-            self.camera = cv2.VideoCapture(0)  # For real use, set this to your camera device
-            if not self.camera.isOpened():
-                print("Warning: Could not open camera. Using dummy frames.")
-                self.camera = None
-        except:
-            print("Warning: Camera initialization failed. Using dummy frames.")
-            self.camera = None
-
-        chunk_duration = CHUNK_DURATION_SECONDS
-        chunk_frames_count = chunk_duration * FPS
-        frame_count = 0
+class VideoCapture:
+    def __init__(self, event_queue, storage_manager, overlay_manager):
+        self.event_queue = event_queue
+        self.storage_manager = storage_manager
+        self.overlay_manager = overlay_manager
+        self.video_buffer = []
+        self.current_chunk = []
         self.chunk_start_time = time.time()
-        self.current_chunk = VideoChunk(self.chunk_start_time)
+        self.buffer_lock = Lock()
+        self.CHUNK_DURATION = 60  # seconds (1 minute)
+        self.BUFFER_DURATION = 15 * 60  # seconds (15 minutes)
+        self.MAX_CHUNKS = self.BUFFER_DURATION // self.CHUNK_DURATION  # 15 chunks
+        self.VIDEO_RESOLUTION = (640, 480)
+        self.VIDEO_FPS = 30
+        self.is_recording_post_event = False
+        self.post_event_chunks = []
+        self.post_event_start_time = None
 
-        while not self.stop_event.is_set():
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            warning = None
-            speed = None
+    def start(self):
+        cap = cv2.VideoCapture(0)  # Assuming camera index 0
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.VIDEO_RESOLUTION[0])
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.VIDEO_RESOLUTION[1])
+        cap.set(cv2.CAP_PROP_FPS, self.VIDEO_FPS)
 
-            # For real use, get CAN data from CAN bus
-            # For simulation, we'll leave these as None
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-            if self.camera:
-                ret, frame = self.camera.read()
-                if ret:
-                    # Overlay information on the frame
-                    frame = overlay_info_on_frame(frame, timestamp, warning, speed)
-                    self.chunk_frames.append(frame)
-                    frame_count += 1
+            # Add timestamp and other overlays
+            frame_with_overlay = self.overlay_manager.add_overlay(frame)
 
-                    # Check if we've reached the end of a chunk
-                    if frame_count >= chunk_frames_count:
-                        self._save_current_chunk()
-                        frame_count = 0
+            # Add frame to current chunk
+            self.current_chunk.append(frame_with_overlay)
+
+            # Check if chunk duration has elapsed
+            if time.time() - self.chunk_start_time >= self.CHUNK_DURATION:
+                with self.buffer_lock:
+                    self.video_buffer.append(self.current_chunk.copy())
+                    self.current_chunk = []
+                    self.chunk_start_time = time.time()
+
+                    # Maintain buffer size
+                    if len(self.video_buffer) > self.MAX_CHUNKS:
+                        self.video_buffer.pop(0)  # Remove oldest chunk
+
+            # Check for events in the queue
+            if not self.event_queue.empty():
+                event = self.event_queue.get()
+                self.handle_event()
+
+            # If recording post-event footage, check if time is up
+            if self.is_recording_post_event:
+                if time.time() - self.post_event_start_time >= 300:  # 5 minutes
+                    self.save_event_video()
+                    self.is_recording_post_event = False
+                    self.post_event_chunks = []
+
+    def handle_event(self):
+        with self.buffer_lock:
+            # Save the last 5 minutes (assuming 1-minute chunks, that's 5 chunks)
+            chunks_to_save = []
+            chunks_for_5_minutes = (5 * 60) // self.CHUNK_DURATION
+
+            if len(self.video_buffer) >= chunks_for_5_minutes:
+                chunks_to_save = self.video_buffer[-chunks_for_5_minutes:]
             else:
-                # Generate dummy frame if no camera
-                frame = np.zeros((VIDEO_HEIGHT, VIDEO_WIDTH, 3), dtype=np.uint8)
-                frame = overlay_info_on_frame(frame, timestamp, warning, speed)
-                self.chunk_frames.append(frame)
-                frame_count += 1
+                chunks_to_save = self.video_buffer.copy()
 
-                if frame_count >= chunk_frames_count:
-                    self._save_current_chunk()
-                    frame_count = 0
+            # Start recording post-event footage
+            self.is_recording_post_event = True
+            self.post_event_chunks = []
+            self.post_event_start_time = time.time()
 
-            # Simulate frame rate delay
-            time.sleep(1/FPS)
+            # For now, just save the pre-event chunks
+            # The post-event chunks will be saved when recording is done
+            self.pre_event_chunks = chunks_to_save
 
-        # Save any remaining frames in the current chunk
-        if self.chunk_frames:
-            self._save_current_chunk()
-
-    def _save_current_chunk(self):
-        """Save the current chunk to the circular buffer."""
-        if not self.chunk_frames:
-            return
-
-        self.current_chunk.frames = self.chunk_frames.copy()
-        self.current_chunk.end_time = time.time()
-        self.current_chunk.timestamp = time.time()
-
-        # Save the chunk to disk (in a real scenario, you might want to do this)
-        # For now, we'll just keep it in memory
-        self.circular_buffer.add_chunk(self.current_chunk)
-
-        # Reset for the next chunk
-        self.chunk_frames = []
-        self.chunk_start_time = time.time()
-        self.current_chunk = VideoChunk(self.chunk_start_time)
-
-    def get_event_video(self, event_time):
-        """Retrieve video chunks around an event time."""
-        start_time = event_time - 5 * 60  # 5 minutes before the event
-        end_time = event_time + 5 * 60    # 5 minutes after the event
-
-        relevant_chunks = self.circular_buffer.get_chunks(start_time, end_time)
-
-        # For testing, we'll just return the chunks
-        return relevant_chunks
-
-    def save_event_video(self, event_time):
-        """Save the event video to disk."""
-        chunks = self.get_event_video(event_time)
-        if not chunks:
-            return False
-
-        # Create a unique filename for the event video
-        timestamp = get_current_timestamp()
-        event_video_path = os.path.join(EVENT_VIDEO_DIR, f"event_{timestamp}.avi")
-
-        # Combine all frames from the chunks into one video
-        all_frames = []
-        for chunk in chunks:
-            all_frames.extend(chunk.frames)
-
-        if all_frames:
-            ensure_dir(EVENT_VIDEO_DIR)
-            return save_video_chunk(all_frames, event_video_path)
-
-        return False
+    def save_event_video(self):
+        full_event_video = self.pre_event_chunks + [self.post_event_chunks]
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"event_{timestamp}.avi"
+        self.storage_manager.save_video(full_event_video, filename)

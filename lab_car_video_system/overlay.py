@@ -1,32 +1,28 @@
 import cv2
-import datetime
-from .config import *
+from datetime import datetime
 
-def overlay_info_on_frame(frame, timestamp, warning=None, speed=None):
-    """
-    Overlay timestamp, warning message, and speed on a video frame.
+class OverlayManager:
+    def __init__(self):
+        self.last_speed = 0
+        self.last_warning = ""
 
-    Args:
-        frame: The video frame to overlay on
-        timestamp: The timestamp to display
-        warning: The warning message to display (optional)
-        speed: The vehicle speed to display (optional)
+    def add_overlay(self, frame):
+        # Add timestamp
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cv2.putText(frame, timestamp, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
-    Returns:
-        The frame with overlays applied
-    """
-    # Overlay timestamp
-    cv2.putText(frame, f"Time: {timestamp}", (50, 100), cv2.FONT_HERSHEY_SIMPLEX,
-                OVERLAY_FONT_SCALE, OVERLAY_FONT_COLORS['timestamp'], OVERLAY_FONT_THICKNESS)
+        # Add speed (example)
+        speed_text = f"Speed: {self.last_speed} km/h"
+        cv2.putText(frame, speed_text, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
-    # Overlay warning if present
-    if warning:
-        cv2.putText(frame, f"Warning: {warning}", (50, 150), cv2.FONT_HERSHEY_SIMPLEX,
-                    OVERLAY_FONT_SCALE, OVERLAY_FONT_COLORS['warning'], OVERLAY_FONT_THICKNESS)
+        # Add warning if any
+        if self.last_warning:
+            cv2.putText(frame, self.last_warning, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
-    # Overlay speed if present
-    if speed is not None:
-        cv2.putText(frame, f"Speed: {speed} km/h", (50, 200), cv2.FONT_HERSHEY_SIMPLEX,
-                    OVERLAY_FONT_SCALE, OVERLAY_FONT_COLORS['speed'], OVERLAY_FONT_THICKNESS)
+        return frame
 
-    return frame
+    def update_speed(self, speed):
+        self.last_speed = speed
+
+    def update_warning(self, warning):
+        self.last_warning = warning
