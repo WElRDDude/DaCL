@@ -4,6 +4,7 @@ import datetime
 import threading
 import cv2
 import numpy as np
+from picamera2 import Picamera2
 from .config import *
 from .utils import ensure_dir, get_current_timestamp, save_video_chunk
 from .overlay import overlay_info_on_frame
@@ -64,64 +65,63 @@ class VideoCaptureManager:
         self.stop_event.set()
         if self.capture_thread:
             self.capture_thread.join()
-        if self.camera and hasattr(self.camera, 'release'):
-            self.camera.release()
+        if self.camera:
+            self.camera.stop()  # Stop the camera
 
     def _capture_loop(self):
-        """Main video capture loop."""
-        # Initialize camera (for testing, we'll use a dummy camera)
+        """Main video capture loop using libcamera."""
         try:
-            self.camera = cv2.VideoCapture(0)  # For real use, set this to your camera device
-            if not self.camera.isOpened():
-                print("Warning: Could not open camera. Using dummy frames.")
-                self.camera = None
-        except:
-            print("Warning: Camera initialization failed. Using dummy frames.")
-            self.camera = None
+            # Initialize camera with Picamera2
+            self.camera = Picamera2()
 
-        chunk_duration = CHUNK_DURATION_SECONDS
-        chunk_frames_count = chunk_duration * FPS
-        frame_count = 0
-        self.chunk_start_time = time.time()
-        self.current_chunk = VideoChunk(self.chunk_start_time)
+            # Configure the camera for video capture
+            video_config = self.camera.create_video_configuration(main={"format": 'XRGB8888', "size": (VIDEO_WIDTH, VIDEO_HEIGHT)})
+            self.camera.configure(video_config)
 
-        while not self.stop_event.is_set():
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            warning = None
-            speed = None
+            # Start the camera
+            self.camera.start()
+            print("Camera started.")
 
-            # For real use, get CAN data from CAN bus
-            # For simulation, we'll leave these as None
+            chunk_duration = CHUNK_DURATION_SECONDS
+            chunk_frames_count = chunk_duration * FPS
+            frame_count = 0
+            self.chunk_start_time = time.time()
+            self.current_chunk = VideoChunk(self.chunk_start_time)
 
-            if self.camera:
-                ret, frame = self.camera.read()
-                if ret:
-                    # Overlay information on the frame
-                    frame = overlay_info_on_frame(frame, timestamp, warning, speed)
-                    self.chunk_frames.append(frame)
-                    frame_count += 1
+            while not self.stop_event.is_set():
+                timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                warning = None
+                speed = None
 
-                    # Check if we've reached the end of a chunk
-                    if frame_count >= chunk_frames_count:
-                        self._save_current_chunk()
-                        frame_count = 0
-            else:
-                # Generate dummy frame if no camera
-                frame = np.zeros((VIDEO_HEIGHT, VIDEO_WIDTH, 3), dtype=np.uint8)
-                frame = overlay_info_on_frame(frame, timestamp, warning, speed)
-                self.chunk_frames.append(frame)
+                # Capture frame from the camera
+                frame = self.camera.capture_array()
+
+                # Convert the frame to BGR format for OpenCV
+                frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+                # Overlay information on the frame
+                frame_with_overlay = overlay_info_on_frame(frame_bgr, timestamp, warning, speed)
+                self.chunk_frames.append(frame_with_overlay)
                 frame_count += 1
 
+                # Check if we've reached the end of a chunk
                 if frame_count >= chunk_frames_count:
                     self._save_current_chunk()
                     frame_count = 0
 
-            # Simulate frame rate delay
-            time.sleep(1/FPS)
+                # Simulate frame rate delay
+                time.sleep(1/FPS)
 
-        # Save any remaining frames in the current chunk
-        if self.chunk_frames:
-            self._save_current_chunk()
+            # Save any remaining frames in the current chunk
+            if self.chunk_frames:
+                self._save_current_chunk()
+
+        except Exception as e:
+            print(f"Error in video capture loop: {e}")
+        finally:
+            if self.camera:
+                self.camera.stop()
+                print("Camera stopped.")
 
     def _save_current_chunk(self):
         """Save the current chunk to the circular buffer."""
@@ -132,8 +132,7 @@ class VideoCaptureManager:
         self.current_chunk.end_time = time.time()
         self.current_chunk.timestamp = time.time()
 
-        # Save the chunk to disk (in a real scenario, you might want to do this)
-        # For now, we'll just keep it in memory
+        # Add the chunk to the circular buffer
         self.circular_buffer.add_chunk(self.current_chunk)
 
         # Reset for the next chunk
