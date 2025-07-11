@@ -1,6 +1,7 @@
 import threading
 import time
 import configparser
+import keyboard  # New import for keyboard input
 from video_capture import VideoCapture
 from can_bus import CanBusListener
 from manual_trigger import ManualTriggerListener
@@ -36,16 +37,44 @@ class LabCarVideoSystem:
         trigger_thread.daemon = True
         trigger_thread.start()
 
+        # Start terminal input listener in a separate thread
+        terminal_thread = threading.Thread(target=self.listen_for_terminal_input)
+        terminal_thread.daemon = True
+        terminal_thread.start()
+
         # Main loop
         try:
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
             print("Shutting down gracefully...")
-            # Add any cleanup code here if needed
         finally:
             print("System shut down.")
 
+    def listen_for_terminal_input(self):
+        print("Terminal manual trigger enabled. Press 't' followed by Enter to trigger an event.")
+        while True:
+            try:
+                # Wait for user input
+                user_input = input()
+                if user_input.lower() == 't':
+                    print("Terminal trigger activated!")
+                    self.event_queue.put("TERMINAL_EVENT")
+            except KeyboardInterrupt:
+                # Exit if Ctrl+C is pressed in the terminal
+                break
+            except EOFError:
+                # Exit if input is closed (e.g., when running with input redirected)
+                break
+
 if __name__ == "__main__":
+    # Install keyboard module if not already installed
+    try:
+        import keyboard
+    except ImportError:
+        print("Installing keyboard module...")
+        import subprocess
+        subprocess.check_call(["pip3", "install", "keyboard"])
+
     system = LabCarVideoSystem()
     system.start()
