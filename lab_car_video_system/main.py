@@ -14,11 +14,11 @@ class LabCarVideoSystem:
         self.config.read(config_file)
 
         self.event_queue = Queue()
-        self.storage_manager = StorageManager()
+        self.storage_manager = StorageManager(self.config)
         self.overlay_manager = OverlayManager()
-        self.video_capture = VideoCapture(self.event_queue, self.storage_manager, self.overlay_manager)
-        self.can_bus_listener = CanBusListener(self.event_queue)
-        self.manual_trigger_listener = ManualTriggerListener(self.event_queue)
+        self.video_capture = VideoCapture(self.event_queue, self.storage_manager, self.overlay_manager, self.config)
+        self.can_bus_listener = CanBusListener(self.event_queue, self.config)
+        self.manual_trigger_listener = ManualTriggerListener(self.event_queue, self.config)
 
     def start(self):
         # Start video capture thread
@@ -41,7 +41,10 @@ class LabCarVideoSystem:
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
-            print("Shutting down...")
+            print("Shutting down gracefully...")
+            # Add any cleanup code here if needed
+        finally:
+            print("System shut down.")
 
 if __name__ == "__main__":
     system = LabCarVideoSystem()
