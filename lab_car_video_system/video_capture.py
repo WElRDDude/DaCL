@@ -82,7 +82,6 @@ class VideoCapture:
         except Exception as e:
             print(f"An error occurred: {e}")
             self.camera.close()
-
     def handle_event(self):
         with self.buffer_lock:
             # Save the last 5 minutes (assuming 1-minute chunks, that's 5 chunks)
@@ -94,10 +93,17 @@ class VideoCapture:
             else:
                 chunks_to_save = self.video_buffer.copy()
 
+            # Determine event type from the queue (assuming the event is a string)
+            event_type = "unknown"
+            if not self.event_queue.empty():
+                event = self.event_queue.get()
+                event_type = event.split('_')[0].lower() if '_' in event else event.lower()
+
             # Start recording post-event footage
             self.is_recording_post_event = True
             self.post_event_chunks = []
             self.post_event_start_time = time.time()
+            self.event_type = event_type  # Store event type for later use
 
             # For now, just save the pre-event chunks
             # The post-event chunks will be saved when recording is done
@@ -108,13 +114,18 @@ class VideoCapture:
         full_event_video = self.pre_event_chunks.copy()
         if self.post_event_chunks:
             full_event_video.append(self.post_event_chunks)
-
-        # Generate filename with timestamp
+    
+        # Generate filename with timestamp and event type
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"event_{timestamp}.avi"
+        event_type = getattr(self, 'event_type', 'unknown')
+        filename = f"event_{event_type}_{timestamp}.avi"
 
         # Save the video
-        self.storage_manager.save_video(full_event_video, filename)
+        self.storage_manager.save_video(full_event_video, filename, event_type)
+
+        # Reset event type
+        self.event_type = "unknown"
+
 
     def __del__(self):
         self.camera.close()
