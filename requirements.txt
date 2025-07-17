@@ -1,5 +1,0 @@
-opencv-python
-python-can
-RPi.GPIO
-numpy
-configparser

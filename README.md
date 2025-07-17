@@ -1,4 +1,3 @@
-
 ### Installation and Usage Guide
 
 #### Hardware Requirements
@@ -11,8 +10,12 @@
 
 #### Software Requirements
 1. Raspberry Pi OS (preferably the latest version)
-2. Python 3.x
-3. Required Python packages (listed in requirements.txt)
+2. C++ compiler (e.g., g++)
+3. Required libraries:
+   - libcam
+   - libcan
+   - OpenCV
+   - WiringPi
 
 #### Installation Steps
 
@@ -31,11 +34,7 @@
      ```bash
      sudo apt update
      sudo apt upgrade -y
-     sudo apt install -y python3-pip python3-opencv libatlas-base-dev libhdf5-dev libhdf5-serial-dev libjasper-dev libqtgui4 libqt4-test
-     ```
-   - Install Python dependencies:
-     ```bash
-     pip3 install -r requirements.txt
+     sudo apt install -y g++ libopencv-dev libcam-dev wiringpi
      ```
 
 4. **Set up CAN Interface**:
@@ -53,7 +52,15 @@
    - Connect the CAN bus adapter to a USB port on the Raspberry Pi.
    - Connect the manual trigger button to a GPIO pin (e.g., GPIO 18) and ground.
 
-6. **Clone the Repository**:
+6. **Build the Project**:
    ```bash
-   git clone <repository_url>
-   cd lab_car_video_system
+   mkdir build
+   cd build
+   cmake ..
+   make
+   ```
+
+7. **Run the System**:
+   ```bash
+   ./lab_car_video_system
+   ```
