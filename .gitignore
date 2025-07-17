@@ -1,0 +1,11 @@
+DaCL/CircularBuffer.o
+DaCL/lab_car_video_system
+DaCL/CANBusListener.o
+DaCL/StorageManager.o
+DaCL/main.o
+DaCL/ManualTrigger.o
+DaCL/VideoCapture.o
+DaCL/VideoOverlay.o
+*.h264
+*.mp4
+*.log
