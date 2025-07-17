@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/labcar.dir/src/video_capture.cpp.o CMakeFiles/labcar.dir/src/can_bus.cpp.o CMakeFiles/labcar.dir/src/manual_trigger.cpp.o CMakeFiles/labcar.dir/src/circular_buffer.cpp.o CMakeFiles/labcar.dir/src/overlay.cpp.o CMakeFiles/labcar.dir/src/storage.cpp.o CMakeFiles/labcar.dir/src/main_app.cpp.o CMakeFiles/labcar.dir/main.cpp.o -o labcar  -lpthread 
