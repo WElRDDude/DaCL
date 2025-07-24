@@ -20,8 +20,6 @@ make
 ## Run
 ```sh
 sudo ./dacl
-# For preview window (testing):
-sudo ./dacl --preview
 ```
 
 ## Features
