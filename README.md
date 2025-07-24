@@ -42,7 +42,3 @@ sudo ./dacl
 
 ## Multiple CAN Warnings
 - The system supports multiple CAN IDs, each mapped to a human-readable warning label.
-- Example format in `configs/config.ini`:
-  ```
-  warning_ids=0x123,Speed Warning;0x456,Brake Warning
-  ```
