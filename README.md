@@ -12,7 +12,7 @@ DaCL is ideal for prototyping and logging in driver-assistance, ADAS, or researc
 
 - **Raspberry Pi 5** (Pi OS Lite 64-bit recommended)
 - **Raspberry Pi Global Shutter Camera Module**
-- **CAN bus interface** (Pi CAN Hat or similar)
+- **CAN bus interface** (Korlan USB2CAN)
 - **GPIO button** (for manual event triggers)
 
 ---
@@ -174,7 +174,7 @@ See `LICENSE` file for details.
 ## Troubleshooting
 
 - Insufficient disk space: Check buffer/event directories.
-- CAN interface not found: Verify Pi CAN Hat and config.
+- CAN interface not found: Verify Korland USB2CAN setup and config.
 - Camera issues: Ensure Pi camera module is detected and enabled.
 - Build errors: Check dependency installation.
 
