@@ -22,11 +22,11 @@ int main(int argc, char* argv[]) {
     std::filesystem::create_directories(config.eventDir);
     std::filesystem::create_directories("logs");
 
-    VideoRecorder videoRecorder(config.bufferDir, config.segmentSeconds, config.bufferMinutes);
-    OverlayRenderer overlayRenderer;
+    CANListener canListener(config.canIface, idToWarning);
+    VideoRecorder videoRecorder(config.bufferDir, config.segmentSeconds, config.bufferMinutes, &canListener);
+    OverlayRenderer overlayRenderer(&canListener); // Pass CANListener instance
     FileManager fileManager(config.bufferDir, config.eventDir);
     CSVLogger csvLogger("logs/events.csv");
-    CANListener canListener(config.canIface, idToWarning);
     TriggerManager triggerManager(&videoRecorder, &fileManager, &csvLogger, &overlayRenderer, &canListener, config.buttonPin, config.pretriggerMinutes, config.posttriggerMinutes);
     StorageManager storageManager(config.bufferDir, config.bufferMinutes + 2);
 

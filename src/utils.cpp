@@ -1,8 +1,10 @@
 #include "utils.hpp"
+#include "CANListener.hpp"
 #include <fstream>
 #include <sstream>
 #include <ctime>
 #include <map>
+#include <iostream>
 
 Config::Config(const std::string &filename) {
     segmentSeconds = 60;
@@ -36,11 +38,11 @@ Config::Config(const std::string &filename) {
     if (kv.count("button_pin")) buttonPin = std::stoi(kv["button_pin"]);
 }
 
-std::string currentTimestamp() {
-    std::time_t now = std::time(nullptr);
-    std::tm *ptm = std::localtime(&now);
+std::string currentTimestamp(const CANListener* canListener) {
     char buf[32];
-    strftime(buf, sizeof(buf), "%Y%m%d_%H%M%S", ptm);
+    snprintf(buf, sizeof(buf), "%04d%02d%02d_%02d%02d%02d",
+             canListener->getYear(), canListener->getMonth(), canListener->getDay(),
+             canListener->getHour(), canListener->getMinute(), canListener->getSecond());
     return std::string(buf);
 }
 
@@ -57,4 +59,25 @@ std::map<int, std::string> parseCANWarnings(const std::string& warningsString) {
         }
     }
     return result;
+}
+
+uint32_t extractSignal(const uint8_t* data, int startBit, int length, bool isLittleEndian, double factor, double offset) {
+    uint64_t rawValue = 0;
+
+    int startByte = startBit / 8;
+    int startBitInByte = startBit % 8;
+
+    for (int i = 0; i < (length + startBitInByte + 7) / 8; ++i) {
+        if (isLittleEndian) {
+            rawValue |= static_cast<uint64_t>(data[startByte + i]) << (i * 8);
+        } else {
+            rawValue = (rawValue << 8) | data[startByte + i];
+        }
+    }
+
+    rawValue >>= startBitInByte;
+    rawValue &= (1ULL << length) - 1;
+
+    double scaledValue = rawValue * factor + offset;
+    return static_cast<uint32_t>(scaledValue);
 }

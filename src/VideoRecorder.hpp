@@ -3,13 +3,15 @@
 #include <vector>
 #include <mutex>
 #include <condition_variable>
+#include "CANListener.hpp"
 
 class VideoRecorder {
 public:
-    VideoRecorder(const std::string &bufferDir, int segmentSeconds, int bufferMinutes);
+    VideoRecorder(const std::string &bufferDir, int segmentSeconds, int bufferMinutes, CANListener* canListener);
     void run();
     std::vector<std::string> getBufferedSegments(int minutesBack);
     void startPostTriggerRecording(int minutesForward, const std::string &eventType, std::string &postFileOut);
+
 private:
     std::string bufferDir_;
     int segmentSeconds_;
@@ -21,4 +23,5 @@ private:
     int postTriggerSegmentsLeft_;
     std::string eventType_;
     std::string postTriggerFile_;
+    CANListener* canListener_; // Pointer to CANListener
 };
