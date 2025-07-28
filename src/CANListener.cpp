@@ -8,9 +8,26 @@
 #include <cstring>
 #include <thread>
 #include <sys/ioctl.h>
+#include <stdexcept>
 
 CANListener::CANListener(const std::string &canIface, const std::map<int, std::string>& idToWarning)
-    : canIface_(canIface), idToWarning_(idToWarning), newWarning_(false) {}
+    : canIface_(canIface), idToWarning_(idToWarning), newWarning_(false) {
+    // Input validation
+    if (canIface.empty()) {
+        throw std::invalid_argument("CAN interface name cannot be empty");
+    }
+    
+    // Initialize atomic variables with default values
+    vehicleSpeed_ = 0;
+    tripMileage_ = 0;
+    totalMileage_ = 0;
+    hour_ = 0;
+    minute_ = 0;
+    second_ = 0;
+    day_ = 1;
+    month_ = 1;
+    year_ = 2024;
+}
 
 void CANListener::run() {
     int s = socket(PF_CAN, SOCK_RAW, CAN_RAW);
